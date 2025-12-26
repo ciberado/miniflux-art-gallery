@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Art Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        #backgroundBlur {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            filter: blur(40px);
+            transform: scale(1.1);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #foregroundImage {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1;
+        }
+
+        #background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            transition: opacity 0.5s ease;
+            opacity: 1;
+        }
+
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.5));
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px;
+            color: white;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        #overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #info {
+            max-width: 600px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .source {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        .description {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            opacity: 0.95;
+        }
+
+        #controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.2rem;
+            z-index: 3;
+        }
+
+        #error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 12px;
+            display: none;
+            z-index: 3;
+        }
+    </style>
+</head>
+<body>
+    <div id="backgroundBlur"></div>
+    <div id="foregroundImage"></div>
+    <div id="background"></div>
+    <div id="overlay">
+        <div id="info">
+            <h1 id="title">Loading...</h1>
+            <div class="source" id="source"></div>
+            <div class="description" id="description"></div>
+        </div>
+        <div id="controls">
+            <button id="nextBtn">Next Image</button>
+            <button id="linkBtn">View Original</button>
+        </div>
+    </div>
+    <div id="loading">Loading art...</div>
+    <div id="error">
+        <h2>Unable to load art</h2>
+        <p>Please check your Miniflux API settings</p>
+    </div>
+
+    <script>
+        const MINIFLUX_URL = 'https://miniflux.mininube.com';
+        const CATEGORY_ID = 3; // Art category
+        
+        // Get API key from query param or use default
+        const urlParams = new URLSearchParams(window.location.search);
+        const API_KEY = urlParams.get('key') || 'YOUR_API_KEY_HERE';
+
+        let entries = [];
+        let currentIndex = 0;
+
+        const overlay = document.getElementById('overlay');
+
+        // Toggle overlay on click anywhere
+        document.addEventListener('click', (e) => {
+            // Don't toggle if clicking on buttons
+            if (e.target.tagName === 'BUTTON') return;
+            overlay.classList.toggle('visible');
+        });
+
+        // Track image appearances
+        const getAppearances = () => {
+            const stored = localStorage.getItem('artAppearances');
+            return stored ? JSON.parse(stored) : {};
+        };
+
+        const incrementAppearance = (entryId) => {
+            const appearances = getAppearances();
+            appearances[entryId] = (appearances[entryId] || 0) + 1;
+            localStorage.setItem('artAppearances', JSON.stringify(appearances));
+        };
+
+        const selectNextEntry = () => {
+            if (entries.length === 0) return null;
+
+            const appearances = getAppearances();
+            
+            // Find the minimum appearance count
+            let minCount = Infinity;
+            entries.forEach(entry => {
+                const count = appearances[entry.id] || 0;
+                if (count < minCount) minCount = count;
+            });
+
+            // Filter entries with minimum appearance count
+            const leastShownEntries = entries.filter(entry => {
+                const count = appearances[entry.id] || 0;
+                return count === minCount;
+            });
+
+            // Pick a random entry from the least shown ones
+            const randomIndex = Math.floor(Math.random() * leastShownEntries.length);
+            return leastShownEntries[randomIndex];
+        };
+
+        const fetchEntries = async () => {
+            try {
+                const params = new URLSearchParams({
+                    limit: 50,
+                    order: 'published_at',
+                    direction: 'desc'
+                });
+
+                const response = await fetch(
+                    `${MINIFLUX_URL}/v1/categories/${CATEGORY_ID}/entries?${params.toString()}`,
+                    {
+                        headers: {
+                            'X-Auth-Token': API_KEY
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Filter entries that have images
+                entries = data.entries.filter(entry => {
+                    const hasImageEnclosure = entry.enclosures.some(enc => 
+                        enc.mime_type.startsWith('image/')
+                    );
+                    if (hasImageEnclosure) return true;
+
+                    // Check for images in content
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = entry.content;
+                    return tempDiv.querySelector('img') !== null;
+                });
+
+                if (entries.length === 0) {
+                    throw new Error('No entries with images found');
+                }
+
+                document.getElementById('loading').style.display = 'none';
+                const firstEntry = selectNextEntry();
+                showEntry(firstEntry);
+            } catch (error) {
+                console.error('Failed to fetch entries:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+            }
+        };
+
+        const getEntryImage = (entry) => {
+            // First try enclosures
+            const imageEnclosure = entry.enclosures.find(enc =>
+                enc.mime_type.startsWith('image/')
+            );
+            if (imageEnclosure) return imageEnclosure.url;
+
+            // Fallback to first image in content
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = entry.content;
+            const firstImg = tempDiv.querySelector('img');
+            return firstImg?.src;
+        };
+
+        const showEntry = (entry) => {
+            if (!entry) return;
+
+            const imageSrc = getEntryImage(entry);
+
+            const bg = document.getElementById('background');
+            const bgBlur = document.getElementById('backgroundBlur');
+            const fgImage = document.getElementById('foregroundImage');
+            
+            // Fade out all layers
+            bg.style.opacity = '0';
+            bgBlur.style.opacity = '0';
+            fgImage.style.opacity = '0';
+
+            // Always use blurred background + contained foreground
+            bgBlur.style.backgroundImage = `url(${imageSrc})`;
+            fgImage.style.backgroundImage = `url(${imageSrc})`;
+            
+            // Fade in after a brief delay
+            setTimeout(() => {
+                bgBlur.style.opacity = '1';
+                fgImage.style.opacity = '1';
+            }, 100);
+
+            document.getElementById('title').textContent = entry.title;
+            document.getElementById('source').textContent = entry.feed.title;
+            
+            // Extract text from content (remove HTML tags)
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = entry.content;
+            const text = tempDiv.textContent.trim().substring(0, 200);
+            document.getElementById('description').textContent = text ? text + '...' : '';
+
+            // Update link button
+            document.getElementById('linkBtn').onclick = () => {
+                window.open(entry.url, '_blank');
+            };
+
+            // Track this appearance
+            incrementAppearance(entry.id);
+        };
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            const nextEntry = selectNextEntry();
+            showEntry(nextEntry);
+        });
+
+        // Auto-advance every 30 seconds (optional)
+        // setInterval(() => {
+        //     const nextEntry = selectNextEntry();
+        //     showEntry(nextEntry);
+        // }, 30000);
+
+        fetchEntries();
+    </script>
+</body>
+</html>
