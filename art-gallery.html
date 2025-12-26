@@ -284,6 +284,7 @@
             const imageEnclosure = entry.enclosures.find(enc =>
                 enc.mime_type.startsWith('image/')
             );
+            console.log('Image enclosure:', imageEnclosure);
             if (imageEnclosure) return makeAbsoluteUrl(imageEnclosure.url);
 
             // Fallback to first image in content
