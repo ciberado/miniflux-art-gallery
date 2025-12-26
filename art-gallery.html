@@ -293,7 +293,7 @@
             const firstImg = tempDiv.querySelector('img');
             // Use getAttribute to get the raw src, not the resolved URL
             const firstImageSrc = firstImg ? firstImg.getAttribute('src') : null;
-            console.log
+            console.log('First image in content:', firstImageSrc);
             return firstImg ? makeAbsoluteUrl(firstImageSrc) : null;
         };
 
