@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="referrer" content="no-referrer">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
     <title>Art Viewer</title>
     <style>
         * {
@@ -284,20 +284,24 @@
             const imageEnclosure = entry.enclosures.find(enc =>
                 enc.mime_type.startsWith('image/')
             );
-            if (imageEnclosure) return imageEnclosure.url;
+            if (imageEnclosure) return proxyImage(imageEnclosure.url);
 
             // Fallback to first image in content
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = entry.content;
             const firstImg = tempDiv.querySelector('img');
-            return firstImg?.src;
+            return firstImg?.src ? proxyImage(firstImg.src) : null;
+        };
+
+        const proxyImage = (imageUrl) => {
+            // Use Miniflux proxy to avoid hotlink protection
+            return `${MINIFLUX_URL}/proxy/${encodeURIComponent(imageUrl)}`;
         };
 
         const showEntry = (entry) => {
             if (!entry) return;
 
             const imageSrc = getEntryImage(entry);
-            const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(imageSrc)}`;
 
             const bg = document.getElementById('background');
             const bgBlur = document.getElementById('backgroundBlur');
@@ -309,8 +313,8 @@
             fgImage.style.opacity = '0';
 
             // Always use blurred background + contained foreground
-            bgBlur.style.backgroundImage = `url(${proxyUrl})`;
-            fgImage.style.backgroundImage = `url(${proxyUrl})`;
+            bgBlur.style.backgroundImage = `url(${imageSrc})`;
+            fgImage.style.backgroundImage = `url(${imageSrc})`;
             
             // Fade in after a brief delay
             setTimeout(() => {
