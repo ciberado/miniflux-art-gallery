@@ -298,11 +298,11 @@
         };
 
         const makeAbsoluteUrl = (url) => {
+            url = url.replace('http://localhost', `${MINIFLUX_URL}`);
             // If URL is relative (starts with /), prepend Miniflux URL
             if (url.startsWith('/')) {
                 return `${MINIFLUX_URL}${url}`;
             }
-            url = url.replace('http://localhost', `${MINIFLUX_URL}`);
             return url;
         };
 
@@ -337,7 +337,7 @@
             // Extract text from content (remove HTML tags)
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = entry.content;
-            const text = tempDiv.textContent.trim().substring(0, 200);
+            const text = tempDiv.textContent.trim().substring(0, 400);
             document.getElementById('description').textContent = text ? text + '...' : '';
 
             // Update link button
