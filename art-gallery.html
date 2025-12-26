@@ -302,6 +302,7 @@
             if (url.startsWith('/')) {
                 return `${MINIFLUX_URL}${url}`;
             }
+            url = url.replace('http://localhost', `${MINIFLUX_URL}`);
             return url;
         };
 
