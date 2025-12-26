@@ -297,6 +297,7 @@
             if (!entry) return;
 
             const imageSrc = getEntryImage(entry);
+            const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(imageSrc)}`;
 
             const bg = document.getElementById('background');
             const bgBlur = document.getElementById('backgroundBlur');
@@ -308,8 +309,8 @@
             fgImage.style.opacity = '0';
 
             // Always use blurred background + contained foreground
-            bgBlur.style.backgroundImage = `url(${imageSrc})`;
-            fgImage.style.backgroundImage = `url(${imageSrc})`;
+            bgBlur.style.backgroundImage = `url(${proxyUrl})`;
+            fgImage.style.backgroundImage = `url(${proxyUrl})`;
             
             // Fade in after a brief delay
             setTimeout(() => {
