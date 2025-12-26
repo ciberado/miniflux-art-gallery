@@ -284,18 +284,22 @@
             const imageEnclosure = entry.enclosures.find(enc =>
                 enc.mime_type.startsWith('image/')
             );
-            if (imageEnclosure) return proxyImage(imageEnclosure.url);
+            if (imageEnclosure) return makeAbsoluteUrl(imageEnclosure.url);
 
             // Fallback to first image in content
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = entry.content;
             const firstImg = tempDiv.querySelector('img');
-            return firstImg?.src ? proxyImage(firstImg.src) : null;
+            // Use getAttribute to get the raw src, not the resolved URL
+            return firstImg ? makeAbsoluteUrl(firstImg.getAttribute('src')) : null;
         };
 
-        const proxyImage = (imageUrl) => {
-            // Use Miniflux proxy to avoid hotlink protection
-            return `${MINIFLUX_URL}/proxy/${encodeURIComponent(imageUrl)}`;
+        const makeAbsoluteUrl = (url) => {
+            // If URL is relative (starts with /), prepend Miniflux URL
+            if (url.startsWith('/')) {
+                return `${MINIFLUX_URL}${url}`;
+            }
+            return url;
         };
 
         const showEntry = (entry) => {
