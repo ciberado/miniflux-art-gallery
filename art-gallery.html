@@ -271,7 +271,7 @@
 
                 document.getElementById('loading').style.display = 'none';
                 const firstEntry = selectNextEntry();
-                showEntry(firstEntry);
+                await showEntry(firstEntry);
             } catch (error) {
                 console.error('Failed to fetch entries:', error);
                 document.getElementById('loading').style.display = 'none';
@@ -279,22 +279,92 @@
             }
         };
 
-        const getEntryImage = (entry) => {
-            // First try enclosures
-            const imageEnclosure = entry.enclosures.find(enc =>
-                enc.mime_type.startsWith('image/')
-            );
-            console.log('Image enclosure:', imageEnclosure);
-            if (imageEnclosure) return makeAbsoluteUrl(imageEnclosure.url);
+        const getImageDimensions = (url) => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                const timeout = setTimeout(() => {
+                    resolve({ width: 0, height: 0, error: true });
+                }, 3000); // 3 second timeout
+                
+                img.onload = () => {
+                    clearTimeout(timeout);
+                    resolve({ width: img.naturalWidth, height: img.naturalHeight, error: false });
+                };
+                
+                img.onerror = () => {
+                    clearTimeout(timeout);
+                    resolve({ width: 0, height: 0, error: true });
+                };
+                
+                img.src = url;
+            });
+        };
 
-            // Fallback to first image in content
+        const getEntryImage = async (entry) => {
+            const candidates = [];
+
+            // Collect all image enclosures
+            entry.enclosures.forEach(enc => {
+                if (enc.mime_type.startsWith('image/')) {
+                    const url = makeAbsoluteUrl(enc.url);
+                    candidates.push({
+                        url: url,
+                        source: 'enclosure'
+                    });
+                }
+            });
+
+            // Collect all images from content
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = entry.content;
-            const firstImg = tempDiv.querySelector('img');
-            // Use getAttribute to get the raw src, not the resolved URL
-            const firstImageSrc = firstImg ? firstImg.getAttribute('src') : null;
-            console.log('First image in content:', firstImageSrc);
-            return firstImg ? makeAbsoluteUrl(firstImageSrc) : null;
+            const images = tempDiv.querySelectorAll('img');
+            
+            images.forEach(img => {
+                const src = img.getAttribute('src');
+                if (src) {
+                    const url = makeAbsoluteUrl(src);
+                    candidates.push({
+                        url: url,
+                        source: 'content'
+                    });
+                }
+            });
+
+            if (candidates.length === 0) return null;
+
+            console.log(`Checking ${candidates.length} image candidates for "${entry.title}"...`);
+
+            // Load all images and get their actual dimensions
+            const dimensionPromises = candidates.map(async (candidate) => {
+                const dims = await getImageDimensions(candidate.url);
+                candidate.width = dims.width;
+                candidate.height = dims.height;
+                candidate.area = dims.width * dims.height;
+                candidate.error = dims.error;
+                return candidate;
+            });
+
+            const resolvedCandidates = await Promise.all(dimensionPromises);
+
+            // Filter out errored images and sort by area (largest first)
+            const validCandidates = resolvedCandidates
+                .filter(c => !c.error && c.area > 0)
+                .sort((a, b) => b.area - a.area);
+
+            if (validCandidates.length === 0) {
+                console.log('No valid images found, using first candidate');
+                return candidates[0].url;
+            }
+
+            console.log('Image candidates with dimensions:', validCandidates.map(c => ({
+                url: c.url.substring(c.url.lastIndexOf('/') + 1),
+                dimensions: `${c.width}x${c.height}`,
+                area: c.area,
+                source: c.source
+            })));
+            console.log('Selected highest resolution:', validCandidates[0].url);
+
+            return validCandidates[0].url;
         };
 
         const makeAbsoluteUrl = (url) => {
@@ -306,10 +376,10 @@
             return url;
         };
 
-        const showEntry = (entry) => {
+        const showEntry = async (entry) => {
             if (!entry) return;
 
-            const imageSrc = getEntryImage(entry);
+            const imageSrc = await getEntryImage(entry);
             console.log('Displaying image:', imageSrc);
 
             const bg = document.getElementById('background');
@@ -349,9 +419,9 @@
             incrementAppearance(entry.id);
         };
 
-        document.getElementById('nextBtn').addEventListener('click', () => {
+        document.getElementById('nextBtn').addEventListener('click', async () => {
             const nextEntry = selectNextEntry();
-            showEntry(nextEntry);
+            await showEntry(nextEntry);
         });
 
         // Auto-advance every 30 seconds (optional)
