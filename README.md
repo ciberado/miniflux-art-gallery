@@ -8,6 +8,7 @@ A beautiful, full-screen art viewer that displays images from your Miniflux RSS 
 - **Smart Rotation**: Automatically cycles through your art feed, prioritizing images you've seen least
 - **Interactive Overlay**: Click anywhere to show/hide image details and controls
 - **Smooth Transitions**: Fade effects between images for a polished experience
+- **Fallback Backgrounds**: Random Wikimedia Commons Pictures of the Day appear when Miniflux or an entry image is unavailable, with author and license attribution
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## Setup
@@ -57,12 +58,15 @@ const API_KEY = urlParams.get('key') || 'YOUR_API_KEY_HERE';
 2. It filters entries to only show those with images
 3. Images are displayed with a smart rotation algorithm that prioritizes unseen or rarely-shown images
 4. View counts are stored in your browser's localStorage to persist across sessions
+5. If Miniflux or an entry image is unavailable, the viewer uses a randomly selected Wikimedia Commons Picture of the Day
 
 ### Display Logic
 
 - All images use a "contain" strategy - the full image is always visible
 - A heavily blurred version of the same image fills the background
 - This creates an attractive, immersive effect for both portrait and landscape images
+- Wikimedia Commons fallback images use a 2560-pixel thumbnail and display their author and license when available
+- A static public image remains as a last resort if Wikimedia Commons cannot be reached
 
 ## Finding Your Category ID
 
