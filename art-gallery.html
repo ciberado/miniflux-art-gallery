@@ -205,6 +205,7 @@
         let currentIndex = 0;
         let showingFallback = true;
         let fallbackAttribution = null;
+        let currentEntry = null;
 
         const overlay = document.getElementById('overlay');
         document.getElementById('background').style.backgroundImage = `url("${FALLBACK_BACKGROUND_URL}")`;
@@ -303,6 +304,10 @@
                     });
 
                     fallbackAttribution = fallback;
+                    showingFallback = true;
+                    document.getElementById('background').style.opacity = '1';
+                    document.getElementById('backgroundBlur').style.opacity = '0';
+                    document.getElementById('foregroundImage').style.opacity = '0';
                     document.getElementById('background').style.backgroundImage = `url("${fallback.image}")`;
                     updateFallbackAttribution();
                     return;
@@ -400,7 +405,6 @@
             } catch (error) {
                 console.error('Failed to fetch entries:', error);
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
             }
         };
 
@@ -503,6 +507,7 @@
 
         const showEntry = async (entry) => {
             if (!entry) return;
+            currentEntry = entry;
 
             const imageSrc = await getEntryImage(entry);
             console.log('Displaying image:', imageSrc);
@@ -542,18 +547,25 @@
             const text = tempDiv.textContent.trim().substring(0, 400);
             document.getElementById('description').textContent = text ? text + '...' : '';
 
-            // Update link button
-            document.getElementById('linkBtn').onclick = () => {
-                window.open(entry.url, '_blank');
-            };
-
             // Track this appearance
             incrementAppearance(entry.id);
         };
 
         document.getElementById('nextBtn').addEventListener('click', async () => {
+            if (entries.length === 0) {
+                await loadFallbackBackground();
+                return;
+            }
+
             const nextEntry = selectNextEntry();
             await showEntry(nextEntry);
+        });
+
+        document.getElementById('linkBtn').addEventListener('click', () => {
+            const url = showingFallback
+                ? (fallbackAttribution?.page || FALLBACK_BACKGROUND_URL)
+                : currentEntry?.url;
+            if (url) window.open(url, '_blank');
         });
 
         // Auto-advance every 30 seconds (optional)
