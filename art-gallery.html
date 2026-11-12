@@ -151,6 +151,22 @@
             display: none;
             z-index: 3;
         }
+
+        #fallbackAttribution {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.55);
+            color: white;
+            font-size: 0.8rem;
+            z-index: 3;
+        }
+
+        #fallbackAttribution a {
+            color: inherit;
+        }
     </style>
 </head>
 <body>
@@ -173,10 +189,12 @@
         <h2>Unable to load art</h2>
         <p>Please check your Miniflux API settings</p>
     </div>
+    <div id="fallbackAttribution" hidden></div>
 
     <script>
         const MINIFLUX_URL = 'https://miniflux.mininube.com';
         const CATEGORY_ID = 3; // Art category
+        const COMMONS_API_URL = 'https://commons.wikimedia.org/w/api.php';
         
         // Get API key from query param or use default
         const urlParams = new URLSearchParams(window.location.search);
@@ -185,9 +203,114 @@
 
         let entries = [];
         let currentIndex = 0;
+        let showingFallback = true;
+        let fallbackAttribution = null;
 
         const overlay = document.getElementById('overlay');
         document.getElementById('background').style.backgroundImage = `url("${FALLBACK_BACKGROUND_URL}")`;
+
+        const fetchCommonsJson = async (params) => {
+            const response = await fetch(`${COMMONS_API_URL}?${params.toString()}`);
+            if (!response.ok) {
+                throw new Error(`Wikimedia Commons returned HTTP ${response.status}`);
+            }
+            return response.json();
+        };
+
+        const getPlainText = (html) => {
+            const element = document.createElement('div');
+            element.innerHTML = html || '';
+            return element.textContent.trim();
+        };
+
+        const potdForDate = async (date) => {
+            const templateParams = new URLSearchParams({
+                action: 'expandtemplates',
+                text: `{{Potd/${date}}}`,
+                prop: 'wikitext',
+                format: 'json',
+                origin: '*'
+            });
+            const templateData = await fetchCommonsJson(templateParams);
+            const file = templateData.expandtemplates?.wikitext?.trim();
+            if (!file) {
+                throw new Error(`No Picture of the Day found for ${date}`);
+            }
+
+            const imageParams = new URLSearchParams({
+                action: 'query',
+                titles: `File:${file.replace(/^File:/i, '')}`,
+                prop: 'imageinfo',
+                iiprop: 'url|extmetadata',
+                iiurlwidth: '2560',
+                format: 'json',
+                formatversion: '2',
+                origin: '*'
+            });
+            const imageData = await fetchCommonsJson(imageParams);
+            const info = imageData.query?.pages?.[0]?.imageinfo?.[0];
+            if (!info?.thumburl || !info.descriptionurl) {
+                throw new Error(`Picture of the Day metadata is missing for ${date}`);
+            }
+
+            const imageUrl = new URL(info.thumburl);
+            const pageUrl = new URL(info.descriptionurl);
+            if (imageUrl.protocol !== 'https:' || imageUrl.hostname !== 'upload.wikimedia.org' ||
+                pageUrl.protocol !== 'https:' || pageUrl.hostname !== 'commons.wikimedia.org') {
+                throw new Error('Unexpected Wikimedia Commons URL');
+            }
+
+            return {
+                image: imageUrl.href,
+                page: pageUrl.href,
+                author: getPlainText(info.extmetadata?.Artist?.value),
+                license: getPlainText(info.extmetadata?.LicenseShortName?.value)
+            };
+        };
+
+        const updateFallbackAttribution = () => {
+            const attribution = document.getElementById('fallbackAttribution');
+            attribution.replaceChildren();
+            attribution.hidden = !showingFallback || !fallbackAttribution;
+            if (attribution.hidden) return;
+
+            const link = document.createElement('a');
+            link.href = fallbackAttribution.page;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = [
+                fallbackAttribution.author,
+                fallbackAttribution.license
+            ].filter(Boolean).join(' · ') || 'Wikimedia Commons';
+            attribution.append(link);
+        };
+
+        const loadFallbackBackground = async () => {
+            const start = Date.UTC(2004, 0, 1);
+            const end = Date.now();
+
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+                const date = new Date(start + Math.random() * (end - start))
+                    .toISOString()
+                    .slice(0, 10);
+                try {
+                    const fallback = await potdForDate(date);
+                    await new Promise((resolve, reject) => {
+                        const image = new Image();
+                        image.onload = resolve;
+                        image.onerror = reject;
+                        image.src = fallback.image;
+                    });
+
+                    fallbackAttribution = fallback;
+                    document.getElementById('background').style.backgroundImage = `url("${fallback.image}")`;
+                    updateFallbackAttribution();
+                    return;
+                } catch (error) {
+                    console.warn(`Unable to load Wikimedia Picture of the Day for ${date}:`, error);
+                }
+            }
+        };
 
         // Toggle overlay on click anywhere
         document.addEventListener('click', (e) => {
@@ -389,6 +512,8 @@
             const fgImage = document.getElementById('foregroundImage');
             
             if (imageSrc) {
+                showingFallback = false;
+                updateFallbackAttribution();
                 bg.style.opacity = '0';
                 bgBlur.style.opacity = '0';
                 fgImage.style.opacity = '0';
@@ -401,6 +526,8 @@
                     fgImage.style.opacity = '1';
                 }, 100);
             } else {
+                showingFallback = true;
+                updateFallbackAttribution();
                 bg.style.opacity = '1';
                 bgBlur.style.opacity = '0';
                 fgImage.style.opacity = '0';
@@ -435,6 +562,7 @@
         //     showEntry(nextEntry);
         // }, 30000);
 
+        loadFallbackBackground();
         fetchEntries();
     </script>
 </body>
