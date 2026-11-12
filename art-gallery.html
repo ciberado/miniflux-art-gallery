@@ -181,11 +181,13 @@
         // Get API key from query param or use default
         const urlParams = new URLSearchParams(window.location.search);
         const API_KEY = urlParams.get('key') || 'YOUR_API_KEY_HERE';
+        const FALLBACK_BACKGROUND_URL = 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=3840&q=90';
 
         let entries = [];
         let currentIndex = 0;
 
         const overlay = document.getElementById('overlay');
+        document.getElementById('background').style.backgroundImage = `url("${FALLBACK_BACKGROUND_URL}")`;
 
         // Toggle overlay on click anywhere
         document.addEventListener('click', (e) => {
@@ -352,8 +354,8 @@
                 .sort((a, b) => b.area - a.area);
 
             if (validCandidates.length === 0) {
-                console.log('No valid images found, using first candidate');
-                return candidates[0].url;
+                console.log('No valid images found');
+                return null;
             }
 
             console.log('Image candidates with dimensions:', validCandidates.map(c => ({
@@ -386,20 +388,23 @@
             const bgBlur = document.getElementById('backgroundBlur');
             const fgImage = document.getElementById('foregroundImage');
             
-            // Fade out all layers
-            bg.style.opacity = '0';
-            bgBlur.style.opacity = '0';
-            fgImage.style.opacity = '0';
+            if (imageSrc) {
+                bg.style.opacity = '0';
+                bgBlur.style.opacity = '0';
+                fgImage.style.opacity = '0';
 
-            // Always use blurred background + contained foreground
-            bgBlur.style.backgroundImage = `url(${imageSrc})`;
-            fgImage.style.backgroundImage = `url(${imageSrc})`;
-            
-            // Fade in after a brief delay
-            setTimeout(() => {
-                bgBlur.style.opacity = '1';
-                fgImage.style.opacity = '1';
-            }, 100);
+                bgBlur.style.backgroundImage = `url("${imageSrc}")`;
+                fgImage.style.backgroundImage = `url("${imageSrc}")`;
+
+                setTimeout(() => {
+                    bgBlur.style.opacity = '1';
+                    fgImage.style.opacity = '1';
+                }, 100);
+            } else {
+                bg.style.opacity = '1';
+                bgBlur.style.opacity = '0';
+                fgImage.style.opacity = '0';
+            }
 
             document.getElementById('title').textContent = entry.title;
             document.getElementById('source').textContent = entry.feed.title;
