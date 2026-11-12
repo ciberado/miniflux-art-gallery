@@ -264,6 +264,7 @@
             return {
                 image: imageUrl.href,
                 page: pageUrl.href,
+                description: getPlainText(info.extmetadata?.ImageDescription?.value),
                 author: getPlainText(info.extmetadata?.Artist?.value),
                 license: getPlainText(info.extmetadata?.LicenseShortName?.value)
             };
@@ -310,6 +311,10 @@
                     document.getElementById('foregroundImage').style.opacity = '0';
                     document.getElementById('background').style.backgroundImage = `url("${fallback.image}")`;
                     updateFallbackAttribution();
+                    if (showingFallback) {
+                        const description = fallback.description.substring(0, 400);
+                        document.getElementById('description').textContent = description ? description + '...' : '';
+                    }
                     return;
                 } catch (error) {
                     console.warn(`Unable to load Wikimedia Picture of the Day for ${date}:`, error);
@@ -545,7 +550,11 @@
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = entry.content;
             const text = tempDiv.textContent.trim().substring(0, 400);
-            document.getElementById('description').textContent = text ? text + '...' : '';
+            const description = showingFallback ? fallbackAttribution?.description : text;
+            const displayedDescription = description?.substring(0, 400);
+            document.getElementById('description').textContent = displayedDescription
+                ? displayedDescription + '...'
+                : '';
 
             // Track this appearance
             incrementAppearance(entry.id);
