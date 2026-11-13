@@ -15,6 +15,7 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             overflow: hidden;
+            background: #222;
         }
 
         #backgroundBlur {
@@ -199,16 +200,13 @@
         // Get API key from query param or use default
         const urlParams = new URLSearchParams(window.location.search);
         const API_KEY = urlParams.get('key') || 'YOUR_API_KEY_HERE';
-        const FALLBACK_BACKGROUND_URL = 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=3840&q=90';
 
         let entries = [];
         let currentIndex = 0;
         let showingFallback = true;
         let fallbackAttribution = null;
         let currentEntry = null;
-
         const overlay = document.getElementById('overlay');
-        document.getElementById('background').style.backgroundImage = `url("${FALLBACK_BACKGROUND_URL}")`;
 
         const fetchCommonsJson = async (params) => {
             const response = await fetch(`${COMMONS_API_URL}?${params.toString()}`);
@@ -304,22 +302,36 @@
                         image.src = fallback.image;
                     });
 
-                    fallbackAttribution = fallback;
-                    showingFallback = true;
-                    document.getElementById('background').style.opacity = '1';
-                    document.getElementById('backgroundBlur').style.opacity = '0';
-                    document.getElementById('foregroundImage').style.opacity = '0';
-                    document.getElementById('background').style.backgroundImage = `url("${fallback.image}")`;
-                    updateFallbackAttribution();
-                    if (showingFallback) {
-                        const description = fallback.description.substring(0, 400);
-                        document.getElementById('description').textContent = description ? description + '...' : '';
-                    }
-                    return;
+                    return fallback;
                 } catch (error) {
                     console.warn(`Unable to load Wikimedia Picture of the Day for ${date}:`, error);
                 }
             }
+            return null;
+        };
+
+        const showFallback = (fallback) => {
+            if (!fallback) return;
+
+            fallbackAttribution = fallback;
+            showingFallback = true;
+            const bg = document.getElementById('background');
+            const bgBlur = document.getElementById('backgroundBlur');
+            const fgImage = document.getElementById('foregroundImage');
+            bg.style.opacity = '0';
+            bgBlur.style.opacity = '0';
+            fgImage.style.opacity = '0';
+            bgBlur.style.backgroundImage = `url("${fallback.image}")`;
+            fgImage.style.backgroundImage = `url("${fallback.image}")`;
+            document.getElementById('title').textContent = 'Picture of the Day';
+            document.getElementById('source').textContent = 'Wikimedia Commons';
+            const description = fallback.description.substring(0, 400);
+            document.getElementById('description').textContent = description ? description + '...' : '';
+            updateFallbackAttribution();
+            setTimeout(() => {
+                bgBlur.style.opacity = '1';
+                fgImage.style.opacity = '1';
+            }, 100);
         };
 
         // Toggle overlay on click anywhere
@@ -410,6 +422,7 @@
             } catch (error) {
                 console.error('Failed to fetch entries:', error);
                 document.getElementById('loading').style.display = 'none';
+                showFallback(await fallbackPromise);
             }
         };
 
@@ -536,15 +549,11 @@
                     fgImage.style.opacity = '1';
                 }, 100);
             } else {
-                showingFallback = true;
-                updateFallbackAttribution();
-                bg.style.opacity = '1';
-                bgBlur.style.opacity = '0';
-                fgImage.style.opacity = '0';
+                showFallback(await fallbackPromise);
             }
 
-            document.getElementById('title').textContent = entry.title;
-            document.getElementById('source').textContent = entry.feed.title;
+            document.getElementById('title').textContent = showingFallback ? 'Picture of the Day' : entry.title;
+            document.getElementById('source').textContent = showingFallback ? 'Wikimedia Commons' : entry.feed.title;
             
             // Extract text from content (remove HTML tags)
             const tempDiv = document.createElement('div');
@@ -562,7 +571,7 @@
 
         document.getElementById('nextBtn').addEventListener('click', async () => {
             if (entries.length === 0) {
-                await loadFallbackBackground();
+                showFallback(await fallbackPromise);
                 return;
             }
 
@@ -572,7 +581,7 @@
 
         document.getElementById('linkBtn').addEventListener('click', () => {
             const url = showingFallback
-                ? (fallbackAttribution?.page || FALLBACK_BACKGROUND_URL)
+                ? fallbackAttribution?.page
                 : currentEntry?.url;
             if (url) window.open(url, '_blank');
         });
@@ -583,7 +592,7 @@
         //     showEntry(nextEntry);
         // }, 30000);
 
-        loadFallbackBackground();
+        const fallbackPromise = loadFallbackBackground();
         fetchEntries();
     </script>
 </body>

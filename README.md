@@ -58,15 +58,15 @@ const API_KEY = urlParams.get('key') || 'YOUR_API_KEY_HERE';
 2. It filters entries to only show those with images
 3. Images are displayed with a smart rotation algorithm that prioritizes unseen or rarely-shown images
 4. View counts are stored in your browser's localStorage to persist across sessions
-5. If Miniflux or an entry image is unavailable, the viewer uses a randomly selected Wikimedia Commons Picture of the Day
+5. Wikimedia Commons is loaded alongside Miniflux, but its Picture of the Day is shown only if Miniflux or an entry image is unavailable
 
 ### Display Logic
 
 - All images use a "contain" strategy - the full image is always visible
 - A heavily blurred version of the same image fills the background
-- This creates an attractive, immersive effect for both portrait and landscape images
+- This creates an attractive, immersive effect for both portrait and landscape images, including Wikimedia Commons fallbacks
 - Wikimedia Commons fallback images use a 2560-pixel thumbnail and display their author and license when available
-- A static public image remains as a last resort if Wikimedia Commons cannot be reached
+- A neutral background is shown while images load or if neither source is available
 
 ## Finding Your Category ID
 
